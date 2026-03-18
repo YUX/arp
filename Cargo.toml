@@ -17,7 +17,7 @@ license = "MIT"
 tokio = { version = "1", features = ["full"] }
 
 # WebSocket
-tokio-tungstenite = "0.24"
+tokio-tungstenite = "0.29"
 tungstenite = "0.24"
 
 # Cryptography
