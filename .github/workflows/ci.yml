@@ -219,7 +219,7 @@ jobs:
         run: cargo run --manifest-path crates/arp-common/Cargo.toml --example sign -- arpc-linux-x86_64 arpc-linux-aarch64 arpc-darwin-x86_64 arpc-darwin-aarch64 arps-linux-x86_64 arps-linux-aarch64
 
       - name: Create release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           generate_release_notes: true
           files: |
