@@ -216,10 +216,11 @@ impl ServerConfig {
         }
 
         // Redirect URL — must use http:// or https:// to prevent open-redirect abuse
-        if let Some(ref url) = self.redirect_url {
-            if !url.starts_with("http://") && !url.starts_with("https://") {
-                return Err("redirect_url must use http:// or https:// scheme".to_string());
-            }
+        if let Some(ref url) = self.redirect_url
+            && !url.starts_with("http://")
+            && !url.starts_with("https://")
+        {
+            return Err("redirect_url must use http:// or https:// scheme".to_string());
         }
         Ok(())
     }

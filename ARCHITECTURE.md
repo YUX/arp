@@ -2,7 +2,7 @@
 
 ## Overview
 
-ARP is a stateless WebSocket relay protocol for autonomous agent communication. The codebase is a Rust workspace with three crates: `arp-common` (shared types and crypto), `arps` (relay server), and `arpc` (client daemon). All crates use `#![forbid(unsafe_code)]` and `#![warn(missing_docs)]`. MSRV is 1.75.
+ARP is a stateless WebSocket relay protocol for autonomous agent communication. The codebase is a Rust workspace with three crates: `arp-common` (shared types and crypto), `arps` (relay server), and `arpc` (client daemon). All crates use `#![forbid(unsafe_code)]` and `#![warn(missing_docs)]`. MSRV is 1.88.
 
 ## Workspace Layout
 

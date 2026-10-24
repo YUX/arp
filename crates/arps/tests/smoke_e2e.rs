@@ -9,29 +9,29 @@
 
 mod common;
 
+use arp_common::Pubkey;
 use arp_common::crypto;
 use arp_common::frame::Frame;
 use arp_common::types::status_code;
-use arp_common::Pubkey;
 use arps::router::Router;
 use arps::server::ServerState;
 use common::*;
 use ed25519_dalek::SigningKey;
 use futures_util::{SinkExt, StreamExt};
-use rand::rngs::OsRng;
+use rand::rng;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::net::TcpListener;
 use tokio::time::{sleep, timeout};
-use tokio_tungstenite::tungstenite::client::IntoClientRequest;
 use tokio_tungstenite::tungstenite::Message;
+use tokio_tungstenite::tungstenite::client::IntoClientRequest;
 
 /// Test Suite 1: Basic Connection and Admission
 #[tokio::test]
 async fn smoke_test_01_basic_admission() {
     let (addr, _state) = start_server().await;
 
-    let keypair = SigningKey::generate(&mut OsRng);
+    let keypair = SigningKey::generate(&mut rng());
     let _client = TestClient::connect(&addr, &keypair).await;
 
     println!("✓ Test 1: Basic admission works");
@@ -42,8 +42,8 @@ async fn smoke_test_01_basic_admission() {
 async fn smoke_test_02_bidirectional_routing() {
     let (addr, _state) = start_server().await;
 
-    let keypair_a = SigningKey::generate(&mut OsRng);
-    let keypair_b = SigningKey::generate(&mut OsRng);
+    let keypair_a = SigningKey::generate(&mut rng());
+    let keypair_b = SigningKey::generate(&mut rng());
 
     let mut client_a = TestClient::connect(&addr, &keypair_a).await;
     let mut client_b = TestClient::connect(&addr, &keypair_b).await;
@@ -82,7 +82,7 @@ async fn smoke_test_02_bidirectional_routing() {
 async fn smoke_test_03_offline_agent() {
     let (addr, _state) = start_server().await;
 
-    let keypair_a = SigningKey::generate(&mut OsRng);
+    let keypair_a = SigningKey::generate(&mut rng());
     let offline_pubkey: Pubkey = [0xFFu8; 32];
 
     let mut client_a = TestClient::connect(&addr, &keypair_a).await;
@@ -106,7 +106,7 @@ async fn smoke_test_04_rate_limiting() {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
 
-    let server_keypair = SigningKey::generate(&mut OsRng);
+    let server_keypair = SigningKey::generate(&mut rng());
     let config = test_config_with_params(addr, 1000, 5, 5);
     let router = Router::new(config.max_conns);
     let state = Arc::new(ServerState {
@@ -127,7 +127,7 @@ async fn smoke_test_04_rate_limiting() {
 
     sleep(Duration::from_millis(50)).await;
 
-    let keypair = SigningKey::generate(&mut OsRng);
+    let keypair = SigningKey::generate(&mut rng());
     let mut client = TestClient::connect(&addr, &keypair).await;
 
     let dest_pubkey: Pubkey = [0xFFu8; 32];
@@ -165,8 +165,8 @@ async fn smoke_test_04_rate_limiting() {
 async fn smoke_test_05_payload_size_limits() {
     let (addr, _state) = start_server_with_max_payload(512).await;
 
-    let keypair_a = SigningKey::generate(&mut OsRng);
-    let keypair_b = SigningKey::generate(&mut OsRng);
+    let keypair_a = SigningKey::generate(&mut rng());
+    let keypair_b = SigningKey::generate(&mut rng());
 
     let mut client_a = TestClient::connect(&addr, &keypair_a).await;
     let _client_b = TestClient::connect(&addr, &keypair_b).await;
@@ -192,8 +192,8 @@ async fn smoke_test_05_payload_size_limits() {
 async fn smoke_test_06_connection_replacement() {
     let (addr, _state) = start_server().await;
 
-    let keypair = SigningKey::generate(&mut OsRng);
-    let keypair_b = SigningKey::generate(&mut OsRng);
+    let keypair = SigningKey::generate(&mut rng());
+    let keypair_b = SigningKey::generate(&mut rng());
 
     let mut client_old = TestClient::connect(&addr, &keypair).await;
     let mut client_new = TestClient::connect(&addr, &keypair).await;
@@ -240,7 +240,7 @@ async fn smoke_test_07_concurrent_agents() {
     let agent_count = 10;
     let mut keypairs = Vec::new();
     for _ in 0..agent_count {
-        keypairs.push(SigningKey::generate(&mut OsRng));
+        keypairs.push(SigningKey::generate(&mut rng()));
     }
 
     let mut clients = Vec::new();
@@ -291,8 +291,8 @@ async fn smoke_test_07_concurrent_agents() {
 async fn smoke_test_08_rapid_fire() {
     let (addr, _state) = start_server().await;
 
-    let keypair_a = SigningKey::generate(&mut OsRng);
-    let keypair_b = SigningKey::generate(&mut OsRng);
+    let keypair_a = SigningKey::generate(&mut rng());
+    let keypair_b = SigningKey::generate(&mut rng());
 
     let mut client_a = TestClient::connect(&addr, &keypair_a).await;
     let mut client_b = TestClient::connect(&addr, &keypair_b).await;
@@ -324,7 +324,7 @@ async fn smoke_test_08_rapid_fire() {
 async fn smoke_test_09_invalid_signature_rejection() {
     let (addr, _state) = start_server().await;
 
-    let keypair = SigningKey::generate(&mut OsRng);
+    let keypair = SigningKey::generate(&mut rng());
     let url = format!("ws://{}", addr);
     let mut req = url.into_client_request().unwrap();
     req.headers_mut().insert(
@@ -350,7 +350,7 @@ async fn smoke_test_09_invalid_signature_rejection() {
     let pubkey: Pubkey = keypair.verifying_key().to_bytes();
     let response = Frame::response(&pubkey, timestamp, &invalid_signature);
     ws_tx
-        .send(Message::Binary(response.serialize()))
+        .send(Message::Binary(response.serialize().into()))
         .await
         .unwrap();
 
@@ -377,7 +377,7 @@ async fn smoke_test_09_invalid_signature_rejection() {
 async fn smoke_test_10_ping_pong() {
     let (addr, _state) = start_server().await;
 
-    let keypair = SigningKey::generate(&mut OsRng);
+    let keypair = SigningKey::generate(&mut rng());
     let mut client = TestClient::connect(&addr, &keypair).await;
 
     let ping_payload = b"keepalive test";
@@ -399,8 +399,8 @@ async fn smoke_test_10_ping_pong() {
 async fn smoke_test_11_large_payload() {
     let (addr, _state) = start_server().await;
 
-    let keypair_a = SigningKey::generate(&mut OsRng);
-    let keypair_b = SigningKey::generate(&mut OsRng);
+    let keypair_a = SigningKey::generate(&mut rng());
+    let keypair_b = SigningKey::generate(&mut rng());
 
     let mut client_a = TestClient::connect(&addr, &keypair_a).await;
     let mut client_b = TestClient::connect(&addr, &keypair_b).await;
@@ -428,8 +428,8 @@ async fn smoke_test_11_large_payload() {
 async fn smoke_test_12_empty_payload() {
     let (addr, _state) = start_server().await;
 
-    let keypair_a = SigningKey::generate(&mut OsRng);
-    let keypair_b = SigningKey::generate(&mut OsRng);
+    let keypair_a = SigningKey::generate(&mut rng());
+    let keypair_b = SigningKey::generate(&mut rng());
 
     let mut client_a = TestClient::connect(&addr, &keypair_a).await;
     let mut client_b = TestClient::connect(&addr, &keypair_b).await;
@@ -453,8 +453,8 @@ async fn smoke_test_12_empty_payload() {
 async fn smoke_test_13_connection_cleanup() {
     let (addr, state) = start_server().await;
 
-    let keypair = SigningKey::generate(&mut OsRng);
-    let keypair_b = SigningKey::generate(&mut OsRng);
+    let keypair = SigningKey::generate(&mut rng());
+    let keypair_b = SigningKey::generate(&mut rng());
 
     let client_a = TestClient::connect(&addr, &keypair).await;
     let mut client_b = TestClient::connect(&addr, &keypair_b).await;
@@ -489,8 +489,8 @@ async fn smoke_test_13_connection_cleanup() {
 async fn smoke_test_14_noise_handshake_simulation() {
     let (addr, _state) = start_server().await;
 
-    let keypair_alice = SigningKey::generate(&mut OsRng);
-    let keypair_bob = SigningKey::generate(&mut OsRng);
+    let keypair_alice = SigningKey::generate(&mut rng());
+    let keypair_bob = SigningKey::generate(&mut rng());
 
     let mut alice = TestClient::connect(&addr, &keypair_alice).await;
     let mut bob = TestClient::connect(&addr, &keypair_bob).await;

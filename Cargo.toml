@@ -8,8 +8,8 @@ members = [
 
 [workspace.package]
 version = "0.3.2"
-edition = "2021"
-rust-version = "1.75"
+edition = "2024"
+rust-version = "1.88"
 license = "MIT"
 
 [workspace.dependencies]
@@ -17,30 +17,29 @@ license = "MIT"
 tokio = { version = "1", features = ["full"] }
 
 # WebSocket
-tokio-tungstenite = "0.24"
-tungstenite = "0.24"
+tokio-tungstenite = "0.30"
+tungstenite = "0.30"
 
 # Cryptography
-ed25519-dalek = { version = "2", features = ["rand_core", "zeroize"] }
-zeroize = "1"
-rand = "0.8"
+ed25519-dalek = { version = "3", features = ["rand_core", "zeroize"] }
+zeroize = "1.9"
+rand = "0.10"
 bs58 = "0.5"
 
 # HPKE encryption (RFC 9180)
-hpke = { version = "0.13", default-features = false, features = ["x25519", "std"] }
-rand_core = { version = "0.9", features = ["os_rng"] }
+hpke = { version = "0.14", default-features = false, features = ["x25519", "alloc", "getrandom", "hkdfsha2", "chacha"] }
 
 # Serialization
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 toml = "1.0"
-base64 = "0.22"
+base64 = "0.23"
 
 # HTTP / metrics
-axum = "0.7"
-metrics = "0.23"
-metrics-exporter-prometheus = "0.15"
-reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+axum = "0.8"
+metrics = "0.24"
+metrics-exporter-prometheus = "0.18"
+reqwest = { version = "0.13", default-features = false, features = ["json", "rustls"] }
 
 # Concurrency
 dashmap = "6"
@@ -49,25 +48,25 @@ dashmap = "6"
 clap = { version = "4", features = ["derive", "env"] }
 
 # Config
-config = "0.14"
+config = "0.15"
 
 # Logging
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
 # Error handling
-thiserror = "1"
+thiserror = "2"
 anyhow = "1"
 
 # Utilities
 chrono = { version = "0.4", features = ["serde"] }
 async-trait = "0.1"
-dirs = "5"
+dirs = "7"
 futures-util = "0.3"
 
-sha2 = "0.10"
+sha2 = "0.11"
 rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
 
 # Testing
-proptest = "1"
-criterion = { version = "0.5", features = ["html_reports"] }
+proptest = "1.12"
+criterion = { version = "0.8", features = ["html_reports"] }

@@ -1,5 +1,7 @@
 use arp_common::frame::Frame;
-use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use std::hint::black_box;
+
+use criterion::{Criterion, criterion_group, criterion_main};
 
 fn bench_route_serialize(c: &mut Criterion) {
     let dest = [0x42u8; 32];

@@ -11,9 +11,9 @@ use futures_util::{SinkExt, StreamExt};
 use std::time::Instant;
 use tokio::net::TcpStream;
 use tokio::sync::mpsc;
-use tokio::time::{interval, Duration};
-use tokio_tungstenite::tungstenite::Message;
+use tokio::time::{Duration, interval};
 use tokio_tungstenite::WebSocketStream;
+use tokio_tungstenite::tungstenite::{Bytes, Message};
 
 pub(crate) type WsSink = SplitSink<WebSocketStream<TcpStream>, Message>;
 pub(crate) type WsRecv = SplitStream<WebSocketStream<TcpStream>>;
@@ -68,14 +68,14 @@ pub(crate) async fn run_message_loop(
             Some(data) = deliver_rx.recv() => {
                 last_activity = Instant::now();
                 counters::payload_bytes_total("out", data.len() as u64);
-                ws_tx.send(Message::Binary(data)).await.map_err(ArpsError::WebSocket)?;
+                ws_tx.send(Message::Binary(data.into())).await.map_err(ArpsError::WebSocket)?;
             }
             _ = ping_interval.tick() => {
                 if last_activity.elapsed() >= idle_timeout {
                     tracing::debug!("idle timeout reached, closing connection");
                     return Ok(());
                 }
-                if let Err(e) = ws_tx.send(Message::Ping(vec![])).await {
+                if let Err(e) = ws_tx.send(Message::Ping(Bytes::new())).await {
                     tracing::debug!("failed to send ping: {}", e);
                 }
             }
@@ -102,7 +102,7 @@ where
                 counters::messages_dropped_total("oversize");
                 let status = Frame::status(&dest, 0x03);
                 ws_tx
-                    .send(Message::Binary(status.serialize()))
+                    .send(Message::Binary(status.serialize().into()))
                     .await
                     .map_err(|_| ArpsError::ConnectionClosed)?;
                 return Ok(());
@@ -116,7 +116,7 @@ where
                 counters::messages_dropped_total("rate_limit");
                 let status = Frame::status(&dest, 0x02);
                 ws_tx
-                    .send(Message::Binary(status.serialize()))
+                    .send(Message::Binary(status.serialize().into()))
                     .await
                     .map_err(|_| ArpsError::ConnectionClosed)?;
                 return Ok(());
@@ -132,7 +132,7 @@ where
                         let status =
                             Frame::status(&dest, arp_common::types::status_code::DELIVERED);
                         ws_tx
-                            .send(Message::Binary(status.serialize()))
+                            .send(Message::Binary(status.serialize().into()))
                             .await
                             .map_err(|_| ArpsError::ConnectionClosed)?;
                     }
@@ -140,7 +140,7 @@ where
                         counters::messages_dropped_total("rate_limit");
                         let status = Frame::status(&dest, 0x02);
                         ws_tx
-                            .send(Message::Binary(status.serialize()))
+                            .send(Message::Binary(status.serialize().into()))
                             .await
                             .map_err(|_| ArpsError::ConnectionClosed)?;
                     }
@@ -148,7 +148,7 @@ where
                         counters::messages_dropped_total("offline");
                         let status = Frame::status(&dest, 0x01);
                         ws_tx
-                            .send(Message::Binary(status.serialize()))
+                            .send(Message::Binary(status.serialize().into()))
                             .await
                             .map_err(|_| ArpsError::ConnectionClosed)?;
                         state.router.remove_if(&dest, dest_handle.admitted_at);
@@ -158,7 +158,7 @@ where
                 counters::messages_dropped_total("offline");
                 let status = Frame::status(&dest, 0x01);
                 ws_tx
-                    .send(Message::Binary(status.serialize()))
+                    .send(Message::Binary(status.serialize().into()))
                     .await
                     .map_err(|_| ArpsError::ConnectionClosed)?;
             }
@@ -166,7 +166,7 @@ where
         Frame::Ping { payload } => {
             let pong_frame = Frame::pong(&payload);
             ws_tx
-                .send(Message::Binary(pong_frame.serialize()))
+                .send(Message::Binary(pong_frame.serialize().into()))
                 .await
                 .map_err(|_| ArpsError::ConnectionClosed)?;
         }

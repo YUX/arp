@@ -1,27 +1,27 @@
 mod common;
 
+use arp_common::Pubkey;
 use arp_common::crypto;
 use arp_common::frame::Frame;
 use arp_common::types::status_code;
-use arp_common::Pubkey;
 use arps::router::Router;
 use arps::server::ServerState;
 use common::*;
 use ed25519_dalek::SigningKey;
 use futures_util::{SinkExt, StreamExt};
-use rand::rngs::OsRng;
+use rand::rng;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::net::TcpListener;
-use tokio_tungstenite::tungstenite::client::IntoClientRequest;
 use tokio_tungstenite::tungstenite::Message;
+use tokio_tungstenite::tungstenite::client::IntoClientRequest;
 
 #[tokio::test]
 async fn two_agents_exchange_messages() {
     let (addr, _state) = start_server().await;
 
-    let keypair_a = SigningKey::generate(&mut OsRng);
-    let keypair_b = SigningKey::generate(&mut OsRng);
+    let keypair_a = SigningKey::generate(&mut rng());
+    let keypair_b = SigningKey::generate(&mut rng());
 
     let mut client_a = TestClient::connect(&addr, &keypair_a).await;
     let mut client_b = TestClient::connect(&addr, &keypair_b).await;
@@ -57,7 +57,7 @@ async fn two_agents_exchange_messages() {
 async fn send_to_offline_agent_returns_status() {
     let (addr, _state) = start_server().await;
 
-    let keypair_a = SigningKey::generate(&mut OsRng);
+    let keypair_a = SigningKey::generate(&mut rng());
     let offline_pubkey: Pubkey = [0xFFu8; 32];
 
     let mut client_a = TestClient::connect(&addr, &keypair_a).await;
@@ -77,8 +77,8 @@ async fn send_to_offline_agent_returns_status() {
 async fn duplicate_pubkey_replaces_old_connection() {
     let (addr, _state) = start_server().await;
 
-    let keypair = SigningKey::generate(&mut OsRng);
-    let keypair_b = SigningKey::generate(&mut OsRng);
+    let keypair = SigningKey::generate(&mut rng());
+    let keypair_b = SigningKey::generate(&mut rng());
 
     let mut client_old = TestClient::connect(&addr, &keypair).await;
     let mut client_new = TestClient::connect(&addr, &keypair).await;
@@ -123,8 +123,8 @@ async fn duplicate_pubkey_replaces_old_connection() {
 async fn oversized_payload_returns_status() {
     let (addr, _state) = start_server_with_max_payload(512).await;
 
-    let keypair_a = SigningKey::generate(&mut OsRng);
-    let keypair_b = SigningKey::generate(&mut OsRng);
+    let keypair_a = SigningKey::generate(&mut rng());
+    let keypair_b = SigningKey::generate(&mut rng());
 
     let mut client_a = TestClient::connect(&addr, &keypair_a).await;
     let _client_b = TestClient::connect(&addr, &keypair_b).await;
@@ -150,7 +150,7 @@ async fn concurrent_agents_exchange_messages() {
     let agent_count = 10;
     let mut keypairs = Vec::new();
     for _ in 0..agent_count {
-        keypairs.push(SigningKey::generate(&mut OsRng));
+        keypairs.push(SigningKey::generate(&mut rng()));
     }
 
     let mut clients = Vec::new();
@@ -191,7 +191,7 @@ async fn test_rate_limiting() {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
 
-    let server_keypair = SigningKey::generate(&mut OsRng);
+    let server_keypair = SigningKey::generate(&mut rng());
     let config = test_config_with_params(addr, 1000, 5, 5);
     let router = Router::new(config.max_conns);
     let state = Arc::new(ServerState {
@@ -212,7 +212,7 @@ async fn test_rate_limiting() {
 
     tokio::time::sleep(Duration::from_millis(50)).await;
 
-    let keypair = SigningKey::generate(&mut OsRng);
+    let keypair = SigningKey::generate(&mut rng());
     let mut client = TestClient::connect(&addr, &keypair).await;
 
     let dest_pubkey: Pubkey = [0xFFu8; 32];
@@ -241,7 +241,7 @@ async fn test_rate_limiting() {
 async fn test_invalid_admission_signature() {
     let (addr, _state) = start_server().await;
 
-    let keypair = SigningKey::generate(&mut OsRng);
+    let keypair = SigningKey::generate(&mut rng());
     let url = format!("ws://{addr}");
     let mut req = url.into_client_request().unwrap();
     req.headers_mut().insert(
@@ -267,7 +267,7 @@ async fn test_invalid_admission_signature() {
     let pubkey: Pubkey = keypair.verifying_key().to_bytes();
     let response = Frame::response(&pubkey, timestamp, &invalid_signature);
     ws_tx
-        .send(Message::Binary(response.serialize()))
+        .send(Message::Binary(response.serialize().into()))
         .await
         .unwrap();
 
@@ -292,7 +292,7 @@ async fn test_admission_timeout() {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
 
-    let server_keypair = SigningKey::generate(&mut OsRng);
+    let server_keypair = SigningKey::generate(&mut rng());
     let config = test_config_with_params(addr, 1000, 120, 1);
     let router = Router::new(config.max_conns);
     let state = Arc::new(ServerState {
@@ -333,10 +333,10 @@ async fn test_admission_timeout() {
         while let Some(msg) = ws_rx.next().await {
             match msg {
                 Ok(Message::Binary(data)) => {
-                    if let Ok(frame) = Frame::parse(&data) {
-                        if matches!(frame, Frame::Rejected { .. }) {
-                            return true;
-                        }
+                    if let Ok(frame) = Frame::parse(&data)
+                        && matches!(frame, Frame::Rejected { .. })
+                    {
+                        return true;
                     }
                 }
                 Ok(Message::Close(_)) | Err(_) => return true,
@@ -357,7 +357,7 @@ async fn test_admission_timeout() {
 async fn test_ping_pong() {
     let (addr, _state) = start_server().await;
 
-    let keypair = SigningKey::generate(&mut OsRng);
+    let keypair = SigningKey::generate(&mut rng());
     let mut client = TestClient::connect(&addr, &keypair).await;
 
     let ping_payload = b"test ping";
@@ -377,7 +377,7 @@ async fn test_max_connections_limit() {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
 
-    let server_keypair = SigningKey::generate(&mut OsRng);
+    let server_keypair = SigningKey::generate(&mut rng());
     let config = test_config_with_params(addr, 2, 120, 5);
     let router = Router::new(config.max_conns);
     let state = Arc::new(ServerState {
@@ -398,8 +398,8 @@ async fn test_max_connections_limit() {
 
     tokio::time::sleep(Duration::from_millis(50)).await;
 
-    let keypair1 = SigningKey::generate(&mut OsRng);
-    let keypair2 = SigningKey::generate(&mut OsRng);
+    let keypair1 = SigningKey::generate(&mut rng());
+    let keypair2 = SigningKey::generate(&mut rng());
 
     let mut _client1 = TestClient::connect(&addr, &keypair1).await;
     let mut _client2 = TestClient::connect(&addr, &keypair2).await;
@@ -442,8 +442,8 @@ async fn test_max_connections_limit() {
 async fn test_admission_with_pow() {
     let (addr, _state) = start_server_with_pow(8).await;
 
-    let keypair_a = SigningKey::generate(&mut OsRng);
-    let keypair_b = SigningKey::generate(&mut OsRng);
+    let keypair_a = SigningKey::generate(&mut rng());
+    let keypair_b = SigningKey::generate(&mut rng());
 
     // Both clients solve PoW and get admitted
     let mut client_a = TestClient::connect_with_pow(&addr, &keypair_a).await;
@@ -493,13 +493,13 @@ async fn test_pow_required_rejects_no_nonce() {
     };
 
     // Send response WITHOUT PoW nonce
-    let keypair = SigningKey::generate(&mut OsRng);
+    let keypair = SigningKey::generate(&mut rng());
     let timestamp = arp_common::crypto::unix_now().expect("clock");
     let signature = arp_common::crypto::sign_admission(&keypair, &challenge, timestamp);
     let pubkey: Pubkey = keypair.verifying_key().to_bytes();
     let response = Frame::response(&pubkey, timestamp, &signature); // no PoW!
     ws_tx
-        .send(Message::Binary(response.serialize()))
+        .send(Message::Binary(response.serialize().into()))
         .await
         .unwrap();
 
@@ -570,7 +570,7 @@ async fn test_disconnect_during_admission() {
     tokio::time::sleep(Duration::from_millis(100)).await;
 
     // Server should still be functional — verify by connecting normally
-    let keypair = SigningKey::generate(&mut OsRng);
+    let keypair = SigningKey::generate(&mut rng());
     let _client = TestClient::connect(&addr, &keypair).await;
     assert_eq!(
         state
@@ -586,7 +586,7 @@ async fn test_rapid_connect_disconnect_cycle() {
 
     // Rapidly connect and disconnect 10 clients
     for _ in 0..10 {
-        let keypair = SigningKey::generate(&mut OsRng);
+        let keypair = SigningKey::generate(&mut rng());
         let client = TestClient::connect(&addr, &keypair).await;
         drop(client);
     }
@@ -595,7 +595,7 @@ async fn test_rapid_connect_disconnect_cycle() {
     tokio::time::sleep(Duration::from_millis(200)).await;
 
     // Server should still accept connections after rapid cycling
-    let keypair = SigningKey::generate(&mut OsRng);
+    let keypair = SigningKey::generate(&mut rng());
     let _client = TestClient::connect(&addr, &keypair).await;
 }
 
@@ -607,7 +607,7 @@ async fn test_rate_limiter_boundary_exact_limit() {
     let config = test_config_with_params(addr, 1000, msg_rate, 5);
     let state = Arc::new(ServerState {
         router: Router::new(config.max_conns),
-        server_keypair: SigningKey::generate(&mut OsRng),
+        server_keypair: SigningKey::generate(&mut rng()),
         config,
         ip_connections: dashmap::DashMap::new(),
         active_connections: std::sync::atomic::AtomicUsize::new(0),
@@ -621,8 +621,8 @@ async fn test_rate_limiter_boundary_exact_limit() {
     });
     tokio::time::sleep(Duration::from_millis(50)).await;
 
-    let keypair_a = SigningKey::generate(&mut OsRng);
-    let keypair_b = SigningKey::generate(&mut OsRng);
+    let keypair_a = SigningKey::generate(&mut rng());
+    let keypair_b = SigningKey::generate(&mut rng());
     let mut sender = TestClient::connect(&addr, &keypair_a).await;
     let mut receiver = TestClient::connect(&addr, &keypair_b).await;
 

@@ -1,12 +1,12 @@
+use arp_common::Pubkey;
 use arp_common::crypto;
 use arp_common::frame::Frame;
-use arp_common::Pubkey;
 use arps::config::ServerConfig;
 use arps::router::Router;
 use arps::server::ServerState;
 use ed25519_dalek::SigningKey;
 use futures_util::{SinkExt, StreamExt};
-use rand::rngs::OsRng;
+use rand::rng;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
@@ -97,7 +97,7 @@ impl TestClient {
         let pubkey: Pubkey = keypair.verifying_key().to_bytes();
         let response = Frame::response(&pubkey, timestamp, &signature);
         ws_tx
-            .send(Message::Binary(response.serialize()))
+            .send(Message::Binary(response.serialize().into()))
             .await
             .unwrap();
 
@@ -121,7 +121,7 @@ impl TestClient {
     pub async fn send_message(&mut self, dest: &Pubkey, payload: &[u8]) {
         let route = Frame::route(dest, payload);
         self.ws_tx
-            .send(Message::Binary(route.serialize()))
+            .send(Message::Binary(route.serialize().into()))
             .await
             .unwrap();
     }
@@ -129,7 +129,7 @@ impl TestClient {
     pub async fn send_ping(&mut self, payload: &[u8]) {
         let ping = Frame::ping(payload);
         self.ws_tx
-            .send(Message::Binary(ping.serialize()))
+            .send(Message::Binary(ping.serialize().into()))
             .await
             .unwrap();
     }
@@ -168,7 +168,7 @@ impl TestClient {
 }
 
 fn make_state(config: ServerConfig) -> Arc<ServerState> {
-    let server_keypair = SigningKey::generate(&mut OsRng);
+    let server_keypair = SigningKey::generate(&mut rng());
     let router = Router::new(config.max_conns);
     Arc::new(ServerState {
         router,
@@ -278,7 +278,7 @@ impl TestClient {
             Frame::response(&pubkey, timestamp, &signature)
         };
         ws_tx
-            .send(Message::Binary(response.serialize()))
+            .send(Message::Binary(response.serialize().into()))
             .await
             .unwrap();
 
