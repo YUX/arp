@@ -38,7 +38,7 @@ base64 = "0.22"
 
 # HTTP / metrics
 axum = "0.7"
-metrics = "0.23"
+metrics = "0.24"
 metrics-exporter-prometheus = "0.15"
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 
