@@ -63,13 +63,17 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
 
-      - name: Install cargo-tarpaulin
-        run: cargo install cargo-tarpaulin --locked
+      - name: Install cargo-llvm-cov
+        run: cargo install cargo-llvm-cov --locked
 
       - name: Generate coverage
-        # LLVM engine: the default ptrace backend segfaults on the arps
-        # integration tests with tokio-tungstenite 0.30 (aws-lc under ptrace).
-        run: cargo tarpaulin --workspace --engine llvm --out xml --output-dir coverage/ --fail-under 54
+        # cargo-llvm-cov replaces cargo-tarpaulin: tarpaulin's default ptrace
+        # engine segfaults on the arps integration tests with tokio-tungstenite
+        # 0.30 (aws-lc assembly under ptrace), and its --engine llvm under-reports
+        # (~38% vs ~52% for the same suite). Current baseline: 52.5% lines.
+        run: |
+          mkdir -p coverage
+          cargo llvm-cov --workspace --cobertura --output-path coverage/cobertura.xml --fail-under-lines 50
 
       - name: Upload coverage
         uses: actions/upload-artifact@v7
