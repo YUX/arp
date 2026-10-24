@@ -3,12 +3,12 @@
 //!
 //! Usage: cargo run --example smoke_test -- ws://127.0.0.1:8181
 
+use arp_common::Pubkey;
 use arp_common::crypto;
 use arp_common::frame::Frame;
-use arp_common::Pubkey;
 use ed25519_dalek::SigningKey;
 use futures_util::{SinkExt, StreamExt};
-use rand::rngs::OsRng;
+use rand::rng;
 use std::time::Duration;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio_tungstenite::tungstenite::Message;
@@ -55,7 +55,7 @@ impl SmokeClient {
         let pubkey: Pubkey = keypair.verifying_key().to_bytes();
         let response = Frame::response(&pubkey, timestamp, &signature);
         ws_tx
-            .send(Message::Binary(response.serialize()))
+            .send(Message::Binary(response.serialize().into()))
             .await
             .unwrap();
 
@@ -79,7 +79,7 @@ impl SmokeClient {
     async fn send_route(&mut self, dest: &Pubkey, payload: &[u8]) {
         let route = Frame::route(dest, payload);
         self.ws_tx
-            .send(Message::Binary(route.serialize()))
+            .send(Message::Binary(route.serialize().into()))
             .await
             .unwrap();
     }
@@ -87,7 +87,7 @@ impl SmokeClient {
     async fn send_ping(&mut self, payload: &[u8]) {
         let ping = Frame::ping(payload);
         self.ws_tx
-            .send(Message::Binary(ping.serialize()))
+            .send(Message::Binary(ping.serialize().into()))
             .await
             .unwrap();
     }
@@ -162,11 +162,11 @@ async fn main() {
 
     // ── Test 1: Admission handshake ──
     eprintln!("\x1b[1m[1/6] Admission Handshake\x1b[0m");
-    let keypair_a = SigningKey::generate(&mut OsRng);
+    let keypair_a = SigningKey::generate(&mut rng());
     let mut client_a = SmokeClient::connect(&url, &keypair_a).await;
     pass("Agent A admitted");
 
-    let keypair_b = SigningKey::generate(&mut OsRng);
+    let keypair_b = SigningKey::generate(&mut rng());
     let mut client_b = SmokeClient::connect(&url, &keypair_b).await;
     pass("Agent B admitted");
 

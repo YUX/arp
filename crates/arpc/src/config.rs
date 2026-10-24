@@ -298,12 +298,12 @@ impl ClientConfig {
                     r.url
                 ));
             }
-            if let Some(ref pk) = r.pubkey {
-                if arp_common::base58::decode_pubkey(pk).is_err() {
-                    return Err(format!(
-                        "relay[{i}]: pubkey must be valid base58 Ed25519 key, got: {pk}"
-                    ));
-                }
+            if let Some(ref pk) = r.pubkey
+                && arp_common::base58::decode_pubkey(pk).is_err()
+            {
+                return Err(format!(
+                    "relay[{i}]: pubkey must be valid base58 Ed25519 key, got: {pk}"
+                ));
             }
         }
 
@@ -316,16 +316,16 @@ impl ClientConfig {
                 self.listen
             ));
         }
-        if let Some(addr_str) = self.listen.strip_prefix("tcp://") {
-            if let Ok(addr) = addr_str.parse::<std::net::SocketAddr>() {
-                if !addr.ip().is_loopback() && !self.allow_remote_api {
-                    return Err(format!(
-                        "TCP listen address {} is not loopback. Binding to a non-loopback address exposes the API to the network. \
+        if let Some(addr_str) = self.listen.strip_prefix("tcp://")
+            && let Ok(addr) = addr_str.parse::<std::net::SocketAddr>()
+            && !addr.ip().is_loopback()
+            && !self.allow_remote_api
+        {
+            return Err(format!(
+                "TCP listen address {} is not loopback. Binding to a non-loopback address exposes the API to the network. \
                          Set allow_remote_api = true to override.",
-                        addr.ip()
-                    ));
-                }
-            }
+                addr.ip()
+            ));
         }
 
         if self.reconnect.initial_delay_ms == 0 {
@@ -374,12 +374,12 @@ impl ClientConfig {
         }
 
         // Validate legacy relay_pubkey if set directly (outside relays[])
-        if let Some(ref pk) = self.relay_pubkey {
-            if arp_common::base58::decode_pubkey(pk).is_err() {
-                return Err(format!(
-                    "relay_pubkey must be a valid base58-encoded Ed25519 public key, got: {pk}"
-                ));
-            }
+        if let Some(ref pk) = self.relay_pubkey
+            && arp_common::base58::decode_pubkey(pk).is_err()
+        {
+            return Err(format!(
+                "relay_pubkey must be a valid base58-encoded Ed25519 public key, got: {pk}"
+            ));
         }
 
         #[cfg(not(feature = "encryption"))]
@@ -545,10 +545,12 @@ mod tests {
     fn test_validate_rejects_empty_relay() {
         let mut config = ClientConfig::default();
         config.relay = String::new();
-        assert!(config
-            .validate()
-            .unwrap_err()
-            .contains("URL must not be empty"));
+        assert!(
+            config
+                .validate()
+                .unwrap_err()
+                .contains("URL must not be empty")
+        );
     }
 
     #[test]

@@ -3,17 +3,17 @@
 use anyhow::Result;
 use arp_common::base58;
 use arps::config::{Args, ServerConfig};
-use arps::metrics::{start_metrics_server, HealthState};
+use arps::metrics::{HealthState, start_metrics_server};
 use arps::router::Router;
-use arps::server::run_with_shutdown;
 use arps::server::ServerState;
+use arps::server::run_with_shutdown;
 use clap::Parser;
 use ed25519_dalek::SigningKey;
-use rand::rngs::OsRng;
+use rand::rng;
 use std::io::IsTerminal;
 use std::path::Path;
-use std::sync::atomic::AtomicUsize;
 use std::sync::Arc;
+use std::sync::atomic::AtomicUsize;
 use tokio::net::TcpListener;
 use tokio::sync::Semaphore;
 use tracing::{info, warn};
@@ -154,7 +154,7 @@ fn load_keypair(path: &Path) -> Result<SigningKey> {
 }
 
 fn generate_keypair() -> SigningKey {
-    let signing_key = SigningKey::generate(&mut OsRng);
+    let signing_key = SigningKey::generate(&mut rng());
     warn!("using ephemeral keypair (not persisted)");
     signing_key
 }

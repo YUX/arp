@@ -1,7 +1,7 @@
 use crate::error::ArpsError;
+use arp_common::Pubkey;
 use arp_common::crypto;
 use arp_common::frame::Frame;
-use arp_common::Pubkey;
 use ed25519_dalek::VerifyingKey;
 use futures_util::StreamExt;
 use tokio::io::{AsyncRead, AsyncWrite};

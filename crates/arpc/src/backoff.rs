@@ -1,4 +1,4 @@
-use rand::Rng;
+use rand::RngExt;
 use std::time::Duration;
 
 /// Exponential backoff with randomized jitter.
@@ -47,7 +47,7 @@ impl ExponentialBackoff {
         let current_ms = self.current.as_millis().min(u128::from(u64::MAX)) as u64;
 
         // Apply jitter to the current delay before advancing
-        let jitter_factor = rand::thread_rng().gen_range(0.75..=1.25);
+        let jitter_factor = rand::rng().random_range(0.75..=1.25);
         let jittered_ms = (current_ms as f64 * jitter_factor) as u64;
         let delay = Duration::from_millis(jittered_ms);
 

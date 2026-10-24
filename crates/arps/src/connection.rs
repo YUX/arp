@@ -1,25 +1,25 @@
 use crate::admission::admit;
 use crate::error::ArpsError;
-use crate::message_loop::{run_message_loop, WsRecv, WsSink};
+use crate::message_loop::{WsRecv, WsSink, run_message_loop};
 use crate::metrics::{counters, gauges};
 use crate::router::ConnHandle;
 use crate::server::ServerState;
-use arp_common::frame::Frame;
 use arp_common::Pubkey;
+use arp_common::frame::Frame;
 use futures_util::{SinkExt, StreamExt};
-use rand::rngs::OsRng;
-use rand::Rng;
+use rand::RngExt;
+use rand::rng;
 use std::net::{IpAddr, SocketAddr};
-use std::sync::atomic::Ordering;
 use std::sync::Arc;
+use std::sync::atomic::Ordering;
 use std::time::Instant;
 use tokio::io::AsyncWriteExt;
 use tokio::net::TcpStream;
 use tokio::sync::mpsc;
-use tokio::time::{timeout, Duration};
+use tokio::time::{Duration, timeout};
+use tokio_tungstenite::tungstenite::Message;
 use tokio_tungstenite::tungstenite::http::Request;
 use tokio_tungstenite::tungstenite::protocol::WebSocketConfig;
-use tokio_tungstenite::tungstenite::Message;
 
 struct IpGuard {
     state: Arc<ServerState>,
@@ -51,13 +51,13 @@ async fn perform_admission(
     state: &ServerState,
 ) -> Result<Pubkey, ArpsError> {
     let mut challenge = [0u8; 32];
-    OsRng.fill(&mut challenge);
+    rng().fill(&mut challenge);
 
     let server_pubkey = state.server_keypair.verifying_key().to_bytes();
 
     let challenge_frame = Frame::challenge(&challenge, &server_pubkey, state.config.pow_difficulty);
     ws_tx
-        .send(Message::Binary(challenge_frame.serialize()))
+        .send(Message::Binary(challenge_frame.serialize().into()))
         .await
         .map_err(ArpsError::WebSocket)?;
 
@@ -71,7 +71,7 @@ async fn perform_admission(
             counters::admissions_total("admitted");
             let admitted_frame = Frame::admitted();
             ws_tx
-                .send(Message::Binary(admitted_frame.serialize()))
+                .send(Message::Binary(admitted_frame.serialize().into()))
                 .await
                 .map_err(ArpsError::WebSocket)?;
             Ok(pk)
@@ -88,7 +88,7 @@ async fn perform_admission(
             };
             let rejected_frame = Frame::rejected(reason);
             match ws_tx
-                .send(Message::Binary(rejected_frame.serialize()))
+                .send(Message::Binary(rejected_frame.serialize().into()))
                 .await
             {
                 Ok(()) => tracing::debug!(reason = reason, "sent rejection frame to client"),
@@ -102,7 +102,7 @@ async fn perform_admission(
             counters::admissions_total("timeout");
             let rejected_frame = Frame::rejected(0x02);
             match ws_tx
-                .send(Message::Binary(rejected_frame.serialize()))
+                .send(Message::Binary(rejected_frame.serialize().into()))
                 .await
             {
                 Ok(()) => tracing::debug!("sent timeout rejection to client"),
@@ -134,49 +134,49 @@ pub async fn handle_connection(
     // browsers would see a connection error.
     {
         let mut peek_buf = [0u8; 4096];
-        if let Ok(n) = stream.peek(&mut peek_buf).await {
-            if let Ok(preview) = std::str::from_utf8(&peek_buf[..n]) {
-                let is_http = preview.starts_with("GET ")
-                    || preview.starts_with("HEAD ")
-                    || preview.starts_with("POST ");
-                if is_http && !preview.to_ascii_lowercase().contains("upgrade: websocket") {
-                    if let Some(ref url) = state.config.redirect_url {
-                        let resp = format!(
-                            "HTTP/1.1 301 Moved Permanently\r\n\
+        if let Ok(n) = stream.peek(&mut peek_buf).await
+            && let Ok(preview) = std::str::from_utf8(&peek_buf[..n])
+        {
+            let is_http = preview.starts_with("GET ")
+                || preview.starts_with("HEAD ")
+                || preview.starts_with("POST ");
+            if is_http && !preview.to_ascii_lowercase().contains("upgrade: websocket") {
+                if let Some(ref url) = state.config.redirect_url {
+                    let resp = format!(
+                        "HTTP/1.1 301 Moved Permanently\r\n\
                              Location: {url}\r\n\
                              Content-Length: 0\r\n\
                              Connection: close\r\n\
                              \r\n"
-                        );
-                        let _ = stream.write_all(resp.as_bytes()).await;
-                    } else {
-                        let body = "<html><head><title>ARP Relay</title></head>\
+                    );
+                    let _ = stream.write_all(resp.as_bytes()).await;
+                } else {
+                    let body = "<html><head><title>ARP Relay</title></head>\
                             <body><h1>ARP Relay</h1>\
                             <p>This is an Agent Relay Protocol (ARP) WebSocket endpoint.</p>\
                             <p>Connect with an ARP client to start communicating.</p>\
                             </body></html>";
-                        let resp = format!(
-                            "HTTP/1.1 200 OK\r\n\
+                    let resp = format!(
+                        "HTTP/1.1 200 OK\r\n\
                              Content-Type: text/html\r\n\
                              Content-Length: {}\r\n\
                              Connection: close\r\n\
                              \r\n{}",
-                            body.len(),
-                            body
-                        );
-                        let _ = stream.write_all(resp.as_bytes()).await;
-                    }
-                    return Ok(());
+                        body.len(),
+                        body
+                    );
+                    let _ = stream.write_all(resp.as_bytes()).await;
                 }
+                return Ok(());
             }
         }
     }
 
-    let ws_config = WebSocketConfig {
-        max_message_size: Some(33 + 65535),
-        max_frame_size: Some(33 + 65535),
-        ..WebSocketConfig::default()
-    };
+    // WebSocketConfig is #[non_exhaustive] in tungstenite 0.30, so start from
+    // defaults and override the size limits.
+    let mut ws_config = WebSocketConfig::default();
+    ws_config.max_message_size = Some(33 + 65535);
+    ws_config.max_frame_size = Some(33 + 65535);
 
     let client_ip = Arc::new(std::sync::OnceLock::new());
     let client_proto = Arc::new(std::sync::OnceLock::new());
@@ -203,26 +203,26 @@ pub async fn handle_connection(
             if let Some(ip) = ip {
                 let _ = ip_cell.set(ip);
             }
-            if let Some(protocols) = req.headers().get("sec-websocket-protocol") {
-                if let Ok(proto_str) = protocols.to_str() {
-                    for p in proto_str.split(',').map(str::trim) {
-                        if p == arp_common::types::PROTOCOL_VERSION {
-                            let _ = proto_cell.set(p.to_string());
-                            resp.headers_mut().insert(
-                                "sec-websocket-protocol",
-                                tokio_tungstenite::tungstenite::http::HeaderValue::from_static(
-                                    arp_common::types::PROTOCOL_VERSION,
-                                ),
-                            );
-                            break;
-                        }
+            if let Some(protocols) = req.headers().get("sec-websocket-protocol")
+                && let Ok(proto_str) = protocols.to_str()
+            {
+                for p in proto_str.split(',').map(str::trim) {
+                    if p == arp_common::types::PROTOCOL_VERSION {
+                        let _ = proto_cell.set(p.to_string());
+                        resp.headers_mut().insert(
+                            "sec-websocket-protocol",
+                            tokio_tungstenite::tungstenite::http::HeaderValue::from_static(
+                                arp_common::types::PROTOCOL_VERSION,
+                            ),
+                        );
+                        break;
                     }
-                    // If no match found, store the first offered protocol for error reporting
-                    if proto_cell.get().is_none() {
-                        if let Some(first) = proto_str.split(',').next().map(str::trim) {
-                            let _ = proto_cell.set(first.to_string());
-                        }
-                    }
+                }
+                // If no match found, store the first offered protocol for error reporting
+                if proto_cell.get().is_none()
+                    && let Some(first) = proto_str.split(',').next().map(str::trim)
+                {
+                    let _ = proto_cell.set(first.to_string());
                 }
             }
             Ok(resp)
@@ -296,7 +296,9 @@ pub async fn handle_connection(
             "rejecting outdated client"
         );
         let rejected = Frame::rejected(arp_common::types::rejection_reason::OUTDATED_CLIENT);
-        let _ = ws_tx.send(Message::Binary(rejected.serialize())).await;
+        let _ = ws_tx
+            .send(Message::Binary(rejected.serialize().into()))
+            .await;
         return Err(ArpsError::ConnectionClosed);
     }
 

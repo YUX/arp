@@ -4,8 +4,8 @@
 //! identified by Ed25519 public keys (base58-encoded) and can be filtered at
 //! the relay layer to silently drop messages from unknown senders.
 
-use arp_common::base58;
 use arp_common::Pubkey;
+use arp_common::base58;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -193,7 +193,7 @@ impl ContactStore {
             }
         };
         let mut contacts: Vec<Contact> = inner.by_pubkey.values().cloned().collect();
-        contacts.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+        contacts.sort_by_key(|c| c.name.to_lowercase());
         contacts
     }
 
@@ -277,7 +277,7 @@ impl ContactStore {
     /// Serialize the current state and write to disk.
     fn save_locked(&self, inner: &Inner) -> Result<(), String> {
         let mut contacts: Vec<Contact> = inner.by_pubkey.values().cloned().collect();
-        contacts.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+        contacts.sort_by_key(|c| c.name.to_lowercase());
 
         let file = ContactsFile {
             filter_mode: inner.filter_mode,

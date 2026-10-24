@@ -11,7 +11,6 @@ use hpke::aead::ChaCha20Poly1305;
 use hpke::kdf::HkdfSha256;
 use hpke::kem::X25519HkdfSha256;
 use hpke::{Deserializable, Kem as KemTrait, Serializable};
-use rand_core::TryRngCore;
 use thiserror::Error;
 use zeroize::Zeroizing;
 
@@ -86,16 +85,14 @@ pub fn seal(
     let (sender_priv, sender_pub) = ed25519_to_hpke_keypair(sender_sk)?;
     let recipient_pk = ed25519_pub_to_hpke(recipient_pub)?;
 
-    let (encapped_key, ciphertext) = hpke::single_shot_seal::<ChaCha20Poly1305, HkdfSha256, Kem, _>(
+    // single_shot_seal draws encapsulation randomness from the OS via getrandom;
+    // it panics only if the system RNG fails, which is unrecoverable anyway.
+    let (encapped_key, ciphertext) = hpke::single_shot_seal::<ChaCha20Poly1305, HkdfSha256, Kem>(
         &hpke::OpModeS::Auth((sender_priv, sender_pub)),
         &recipient_pk,
         INFO,
         plaintext,
         AAD,
-        // OsRng implements TryRngCore (fallible) but hpke::single_shot_seal requires
-        // CryptoRngCore (infallible). The unwrap_err() adapter converts TryRngCore -> RngCore,
-        // panicking only if the OS RNG fails - which is unrecoverable anyway.
-        &mut rand_core::OsRng.unwrap_err(),
     )?;
 
     let enc_bytes = encapped_key.to_bytes();
@@ -153,10 +150,10 @@ pub fn open(
 mod tests {
     use super::*;
     use ed25519_dalek::SigningKey;
-    use rand::rngs::OsRng;
+    use rand::rng;
 
     fn gen_key() -> SigningKey {
-        SigningKey::generate(&mut OsRng)
+        SigningKey::generate(&mut rng())
     }
 
     #[test]

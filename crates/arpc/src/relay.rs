@@ -3,9 +3,9 @@ use crate::config::{ClientConfig, RelayConfig, SendStrategy};
 use crate::contacts::ContactStore;
 use crate::dedup::Deduplicator;
 use crate::webhook::WebhookClient;
+use arp_common::Pubkey;
 use arp_common::crypto;
 use arp_common::frame::Frame;
-use arp_common::Pubkey;
 use chrono::Utc;
 use futures_util::stream::{SplitSink, SplitStream};
 use futures_util::{SinkExt, StreamExt};
@@ -17,8 +17,8 @@ use std::time::{Duration, Instant};
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::sync::{broadcast, mpsc, oneshot, watch};
 use tokio::task::JoinHandle;
-use tokio_tungstenite::tungstenite::Message;
 use tokio_tungstenite::WebSocketStream;
+use tokio_tungstenite::tungstenite::{Bytes, Message};
 use tracing::{debug, error, info, warn};
 
 /// Internal error status code for seal/encrypt failures.
@@ -499,9 +499,9 @@ async fn relay_coordinator(
                     };
 
                     // Update best status (higher precedence wins)
-                    let is_better = pending.best_code.map_or(true, |old|
-                        status_precedence(report.code) > status_precedence(old)
-                    );
+                    let is_better = pending
+                        .best_code
+                        .is_none_or(|old| status_precedence(report.code) > status_precedence(old));
                     if is_better {
                         pending.best_code = Some(report.code);
                     }
@@ -539,13 +539,12 @@ async fn relay_coordinator(
                     }
                 };
 
-                if should_resolve {
-                    if let Some(ack) = pending_acks.remove(&report.send_id) {
+                if should_resolve
+                    && let Some(ack) = pending_acks.remove(&report.send_id) {
                         let code = ack.best_code
                             .unwrap_or(arp_common::types::status_code::OFFLINE);
                         let _ = ack.ack_tx.send(code);
                     }
-                }
             }
 
             // ── Periodic cleanup + status aggregation ──
@@ -855,8 +854,8 @@ async fn relay_worker_connection(
                                 );
                                 // Match STATUS to the oldest pending send for this pubkey (FIFO).
                                 if let Some(queue) = pending_sends.get_mut(&ref_pubkey) {
-                                    if let Some(send_id) = queue.pop_front() {
-                                        if status_report_tx
+                                    if let Some(send_id) = queue.pop_front()
+                                        && status_report_tx
                                             .try_send(StatusReport {
                                                 send_id,
                                                 relay_idx: worker_id,
@@ -866,7 +865,6 @@ async fn relay_worker_connection(
                                         {
                                             warn!(worker = worker_id, send_id, "status report channel full, coordinator may timeout");
                                         }
-                                    }
                                     if queue.is_empty() {
                                         pending_sends.remove(&ref_pubkey);
                                     }
@@ -927,7 +925,7 @@ async fn relay_worker_connection(
 
                         tokio::time::timeout(
                             Duration::from_secs(10),
-                            ws_tx.send(Message::Binary(data)),
+                            ws_tx.send(Message::Binary(data.into())),
                         )
                         .await
                         .map_err(|_| RelayError::Transient(anyhow::anyhow!("WebSocket write timed out")))?
@@ -947,7 +945,7 @@ async fn relay_worker_connection(
 
             // ── Keepalive ping ──
             _ = ping_interval.tick() => {
-                tokio::time::timeout(Duration::from_secs(10), ws_tx.send(Message::Ping(vec![])))
+                tokio::time::timeout(Duration::from_secs(10), ws_tx.send(Message::Ping(Bytes::new())))
                     .await
                     .map_err(|_| RelayError::Transient(anyhow::anyhow!("WebSocket write timed out")))?
                     .map_err(|e| RelayError::Transient(e.into()))?;
@@ -1021,7 +1019,7 @@ where
     };
     tokio::time::timeout(
         Duration::from_secs(10),
-        ws_tx.send(Message::Binary(response.serialize())),
+        ws_tx.send(Message::Binary(response.serialize().into())),
     )
     .await
     .map_err(|_| RelayError::Transient(anyhow::anyhow!("handshake write timed out")))?

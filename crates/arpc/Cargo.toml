@@ -17,7 +17,7 @@ path = "src/lib.rs"
 
 [features]
 default = ["encryption"]
-encryption = ["dep:hpke", "dep:rand_core"]
+encryption = ["dep:hpke"]
 
 [dependencies]
 arp-common = { path = "../arp-common", features = ["update"] }
@@ -28,7 +28,6 @@ rustls-native-certs = "0.8"
 ed25519-dalek = { workspace = true }
 rand = { workspace = true }
 hpke = { workspace = true, optional = true }
-rand_core = { workspace = true, optional = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 base64 = { workspace = true }

@@ -10,12 +10,12 @@ use crate::config::BridgeConfig;
 use crate::contacts::ContactStore;
 use crate::relay::InboundMsg;
 
-use base64::engine::general_purpose::{STANDARD, URL_SAFE_NO_PAD};
 use base64::Engine;
+use base64::engine::general_purpose::{STANDARD, URL_SAFE_NO_PAD};
 use ed25519_dalek::{Signer, SigningKey};
 use futures_util::{SinkExt, StreamExt};
-use rand::Rng;
-use serde_json::{json, Value};
+use rand::RngExt;
+use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use std::sync::Arc;
 use std::time::Duration;
@@ -27,7 +27,7 @@ const HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(10);
 const SEND_TIMEOUT: Duration = Duration::from_secs(15);
 
 fn rand_id() -> String {
-    let bytes: [u8; 16] = rand::thread_rng().gen();
+    let bytes: [u8; 16] = rand::rng().random();
     bytes.iter().map(|b| format!("{b:02x}")).collect()
 }
 
@@ -278,7 +278,7 @@ async fn bridge_session(
     // --- Send connect request with device auth ---
     let hs = build_connect_frame(&config.gateway_token, device, nonce);
     ws_tx
-        .send(Message::Text(hs.to_string()))
+        .send(Message::Text(hs.to_string().into()))
         .await
         .map_err(|e| BridgeError::Transient(e.into()))?;
 
@@ -343,7 +343,7 @@ async fn bridge_session(
                         trace!(message = %text, "bridge injecting message");
 
                         ws_tx
-                            .send(Message::Text(frame.to_string()))
+                            .send(Message::Text(frame.to_string().into()))
                             .await
                             .map_err(|e| BridgeError::Transient(e.into()))?;
 

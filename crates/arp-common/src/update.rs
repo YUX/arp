@@ -27,29 +27,29 @@ const RELEASE_SIGNING_PUBKEY: [u8; 32] = [0u8; 32];
 /// → `Cargo.toml` `repository` field → built-in default.
 fn github_repo() -> String {
     // 1. Runtime env var (for operators/packagers)
-    if let Ok(repo) = std::env::var("ARP_GITHUB_REPO") {
-        if !repo.is_empty() {
-            if is_valid_repo_slug(&repo) {
-                return repo;
-            }
-            eprintln!(
-                "warning: ARP_GITHUB_REPO '{}' must be in 'owner/repo' format, ignoring",
-                repo
-            );
+    if let Ok(repo) = std::env::var("ARP_GITHUB_REPO")
+        && !repo.is_empty()
+    {
+        if is_valid_repo_slug(&repo) {
+            return repo;
         }
+        eprintln!(
+            "warning: ARP_GITHUB_REPO '{}' must be in 'owner/repo' format, ignoring",
+            repo
+        );
     }
     // 2. Compile-time env var (for forks building from source)
-    if let Some(repo) = option_env!("ARP_GITHUB_REPO") {
-        if !repo.is_empty() {
-            if is_valid_repo_slug(repo) {
-                return repo.to_string();
-            }
-            // Compile-time value is developer-controlled; still warn at runtime
-            eprintln!(
-                "warning: compile-time ARP_GITHUB_REPO '{}' must be in 'owner/repo' format, ignoring",
-                repo
-            );
+    if let Some(repo) = option_env!("ARP_GITHUB_REPO")
+        && !repo.is_empty()
+    {
+        if is_valid_repo_slug(repo) {
+            return repo.to_string();
         }
+        // Compile-time value is developer-controlled; still warn at runtime
+        eprintln!(
+            "warning: compile-time ARP_GITHUB_REPO '{}' must be in 'owner/repo' format, ignoring",
+            repo
+        );
     }
     // 3. Derive from Cargo.toml repository field
     let pkg_repo = env!("CARGO_PKG_REPOSITORY");
@@ -135,9 +135,12 @@ async fn fetch_latest_tag(client: &reqwest::Client) -> Result<String, anyhow::Er
 
 /// Verifies a SHA-256 checksum against expected hex digest.
 pub fn verify_checksum(data: &[u8], expected_hex: &str) -> bool {
-    let mut hasher = Sha256::new();
-    hasher.update(data);
-    let actual = format!("{:x}", hasher.finalize());
+    let digest = Sha256::digest(data);
+    let mut actual = String::with_capacity(digest.len() * 2);
+    for byte in digest {
+        use std::fmt::Write as _;
+        let _ = write!(actual, "{byte:02x}");
+    }
     actual == expected_hex
 }
 
@@ -308,7 +311,9 @@ pub async fn perform_update(name: &str, version: &str) -> Result<(), anyhow::Err
                 if !verify_release_signature(&bin_data, &sig_data, &RELEASE_SIGNING_PUBKEY) {
                     if tty {
                         eprintln!();
-                        eprintln!("  {RED}\u{2717}{RESET} Signature verification failed! Aborting update.");
+                        eprintln!(
+                            "  {RED}\u{2717}{RESET} Signature verification failed! Aborting update."
+                        );
                     }
                     anyhow::bail!("release signature verification failed! Aborting update.");
                 }
@@ -333,7 +338,9 @@ pub async fn perform_update(name: &str, version: &str) -> Result<(), anyhow::Err
                 // Network error fetching .sig — warn but proceed
                 eprintln!();
                 if tty {
-                    eprintln!("  {DIM}\u{26a0} Could not fetch signature: {e}, proceeding without verification{RESET}");
+                    eprintln!(
+                        "  {DIM}\u{26a0} Could not fetch signature: {e}, proceeding without verification{RESET}"
+                    );
                 } else {
                     eprintln!(
                         "Warning: could not fetch signature: {e}, proceeding without verification"

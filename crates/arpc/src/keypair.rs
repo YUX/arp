@@ -1,5 +1,5 @@
 use ed25519_dalek::SigningKey;
-use rand::rngs::OsRng;
+use rand::rng;
 use std::fs::{self, OpenOptions};
 use std::io::Write;
 #[cfg(unix)]
@@ -16,16 +16,16 @@ const KEY_FILE_PERMS: u32 = 0o600;
 pub fn load_or_generate_keypair(path: &Path) -> anyhow::Result<SigningKey> {
     // AUDIT CFG-02: Warn if config directory permissions are too open
     #[cfg(unix)]
-    if let Some(parent) = path.parent() {
-        if let Ok(meta) = fs::metadata(parent) {
-            let dir_mode = meta.permissions().mode() & 0o777;
-            if dir_mode & 0o077 != 0 {
-                tracing::warn!(
-                    "config directory {} has loose permissions ({:o}), recommend 0700",
-                    parent.display(),
-                    dir_mode
-                );
-            }
+    if let Some(parent) = path.parent()
+        && let Ok(meta) = fs::metadata(parent)
+    {
+        let dir_mode = meta.permissions().mode() & 0o777;
+        if dir_mode & 0o077 != 0 {
+            tracing::warn!(
+                "config directory {} has loose permissions ({:o}), recommend 0700",
+                parent.display(),
+                dir_mode
+            );
         }
     }
 
@@ -68,7 +68,7 @@ pub fn load_or_generate_keypair(path: &Path) -> anyhow::Result<SigningKey> {
 
         Ok(signing_key)
     } else {
-        let signing_key = SigningKey::generate(&mut OsRng);
+        let signing_key = SigningKey::generate(&mut rng());
         let seed = signing_key.to_bytes();
 
         if let Some(parent) = path.parent() {
@@ -101,7 +101,7 @@ pub fn load_or_generate_keypair(path: &Path) -> anyhow::Result<SigningKey> {
 
 /// Generate a fresh Ed25519 keypair using OS randomness.
 pub fn generate_keypair() -> SigningKey {
-    SigningKey::generate(&mut OsRng)
+    SigningKey::generate(&mut rng())
 }
 
 #[cfg(test)]

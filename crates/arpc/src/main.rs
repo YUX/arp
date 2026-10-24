@@ -1,10 +1,10 @@
 #![forbid(unsafe_code)]
 
-use arpc::config::{load_config, Cli, Commands, ContactAction};
+use arpc::config::{Cli, Commands, ContactAction, load_config};
 use arpc::contacts::ContactStore;
 use arpc::keypair;
 use arpc::local_api;
-use arpc::relay::{spawn_relay_pool, ConnStatus, DaemonStats, InboundMsg, OutboundMsg};
+use arpc::relay::{ConnStatus, DaemonStats, InboundMsg, OutboundMsg, spawn_relay_pool};
 
 use arp_common::base58;
 use base64::Engine;
@@ -94,10 +94,10 @@ async fn run_daemon(cli: &Cli) -> anyhow::Result<()> {
     if let Some(ref listen) = cli.listen {
         config.listen = listen.clone();
     }
-    if let Some(ref relay_pubkey) = cli.relay_pubkey {
-        if config.relays.is_empty() {
-            config.relay_pubkey = Some(relay_pubkey.clone());
-        }
+    if let Some(ref relay_pubkey) = cli.relay_pubkey
+        && config.relays.is_empty()
+    {
+        config.relay_pubkey = Some(relay_pubkey.clone());
     }
 
     if cli.relay.is_some() && !config.relays.is_empty() {
@@ -511,7 +511,9 @@ async fn main() -> anyhow::Result<()> {
         .install_default()
         .is_err()
     {
-        eprintln!("Failed to install rustls crypto provider - may already be installed or unsupported platform");
+        eprintln!(
+            "Failed to install rustls crypto provider - may already be installed or unsupported platform"
+        );
     }
 
     let cli = Cli::parse();
@@ -769,14 +771,18 @@ async fn main() -> anyhow::Result<()> {
                         let mode = meta.permissions().mode() & 0o777;
                         if mode == 0o600 {
                             if tty() {
-                                println!("  {GREEN}\u{2713}{RESET} Key permissions correct {DIM}(600){RESET}");
+                                println!(
+                                    "  {GREEN}\u{2713}{RESET} Key permissions correct {DIM}(600){RESET}"
+                                );
                             } else {
                                 println!("key_perms: ok");
                             }
                         } else {
                             ok = false;
                             if tty() {
-                                println!("  {RED}\u{2717}{RESET} Key permissions: {DIM}{mode:o} (should be 600){RESET}");
+                                println!(
+                                    "  {RED}\u{2717}{RESET} Key permissions: {DIM}{mode:o} (should be 600){RESET}"
+                                );
                             } else {
                                 println!("key_perms: warn: {mode:o}");
                             }
@@ -843,22 +849,22 @@ async fn main() -> anyhow::Result<()> {
                     }
 
                     // 4. Relay connection status
-                    if let Ok(resp) = daemon_cmd(&addr, r#"{"cmd": "status"}"#).await {
-                        if let Ok(json) = serde_json::from_str::<serde_json::Value>(resp.trim()) {
-                            let status = json["status"].as_str().unwrap_or("unknown");
-                            let (icon, color) = match status {
-                                "connected" => ("\u{2713}", GREEN),
-                                "connecting" => ("\u{25cf}", YELLOW),
-                                _ => ("\u{2717}", RED),
-                            };
-                            if tty() {
-                                println!("  {color}{icon}{RESET} Relay: {status}");
-                            } else {
-                                println!("relay: {status}");
-                            }
-                            if status != "connected" {
-                                ok = false;
-                            }
+                    if let Ok(resp) = daemon_cmd(&addr, r#"{"cmd": "status"}"#).await
+                        && let Ok(json) = serde_json::from_str::<serde_json::Value>(resp.trim())
+                    {
+                        let status = json["status"].as_str().unwrap_or("unknown");
+                        let (icon, color) = match status {
+                            "connected" => ("\u{2713}", GREEN),
+                            "connecting" => ("\u{25cf}", YELLOW),
+                            _ => ("\u{2717}", RED),
+                        };
+                        if tty() {
+                            println!("  {color}{icon}{RESET} Relay: {status}");
+                        } else {
+                            println!("relay: {status}");
+                        }
+                        if status != "connected" {
+                            ok = false;
                         }
                     }
                 }
@@ -876,24 +882,26 @@ async fn main() -> anyhow::Result<()> {
             }
 
             // 5. Bridge config (if enabled)
-            if let Ok(cfg) = load_config(cli.config.as_deref()) {
-                if cfg.bridge.enabled {
-                    if !cfg.bridge.gateway_token.is_empty() && !cfg.bridge.session_key.is_empty() {
-                        if tty() {
-                            println!(
-                                "  {GREEN}\u{2713}{RESET} Bridge configured {DIM}({}){RESET}",
-                                cfg.bridge.session_key
-                            );
-                        } else {
-                            println!("bridge: configured: {}", cfg.bridge.session_key);
-                        }
+            if let Ok(cfg) = load_config(cli.config.as_deref())
+                && cfg.bridge.enabled
+            {
+                if !cfg.bridge.gateway_token.is_empty() && !cfg.bridge.session_key.is_empty() {
+                    if tty() {
+                        println!(
+                            "  {GREEN}\u{2713}{RESET} Bridge configured {DIM}({}){RESET}",
+                            cfg.bridge.session_key
+                        );
                     } else {
-                        ok = false;
-                        if tty() {
-                            println!("  {RED}\u{2717}{RESET} Bridge enabled but missing token or session_key");
-                        } else {
-                            println!("bridge: misconfigured");
-                        }
+                        println!("bridge: configured: {}", cfg.bridge.session_key);
+                    }
+                } else {
+                    ok = false;
+                    if tty() {
+                        println!(
+                            "  {RED}\u{2717}{RESET} Bridge enabled but missing token or session_key"
+                        );
+                    } else {
+                        println!("bridge: misconfigured");
                     }
                 }
             }
@@ -909,7 +917,9 @@ async fn main() -> anyhow::Result<()> {
                 }
                 Ok(Some(latest)) => {
                     if tty() {
-                        println!("  {YELLOW}\u{25cf}{RESET} Update available: {BOLD}{latest}{RESET} {DIM}(current: v{v}){RESET}");
+                        println!(
+                            "  {YELLOW}\u{25cf}{RESET} Update available: {BOLD}{latest}{RESET} {DIM}(current: v{v}){RESET}"
+                        );
                     } else {
                         println!("version: outdated: v{v} -> {latest}");
                     }

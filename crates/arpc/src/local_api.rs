@@ -1,11 +1,11 @@
 use crate::contacts::ContactStore;
 use crate::relay::{ConnStatus, DaemonStats, InboundMsg, OutboundMsg, RelayInfo};
 use arp_common::Pubkey;
-use base64::engine::general_purpose::STANDARD as BASE64;
 use base64::Engine;
+use base64::engine::general_purpose::STANDARD as BASE64;
 use serde::{Deserialize, Serialize};
-use std::sync::atomic::Ordering;
 use std::sync::Arc;
+use std::sync::atomic::Ordering;
 use std::time::Duration;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, BufReader};
 use tokio::net::TcpListener;
@@ -475,10 +475,10 @@ where
                     received_at: msg.received_at.to_rfc3339(),
                 };
 
-                if let Ok(json) = serde_json::to_string(&resp) {
-                    if writer.write_all((json + "\n").as_bytes()).await.is_err() {
-                        break;
-                    }
+                if let Ok(json) = serde_json::to_string(&resp)
+                    && writer.write_all((json + "\n").as_bytes()).await.is_err()
+                {
+                    break;
                 }
             }
             Err(broadcast::error::RecvError::Lagged(n)) => {
@@ -496,7 +496,7 @@ mod tests {
     use crate::contacts::ContactStore;
     use crate::relay::{ConnStatus, DaemonStats, InboundMsg, OutboundMsg};
     use tokio::io::AsyncBufReadExt;
-    use tokio::io::{duplex, AsyncWriteExt};
+    use tokio::io::{AsyncWriteExt, duplex};
     use tokio::sync::{broadcast, mpsc, watch};
 
     fn test_contacts() -> ContactStore {
