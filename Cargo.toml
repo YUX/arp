@@ -27,7 +27,7 @@ rand = "0.10"
 bs58 = "0.5"
 
 # HPKE encryption (RFC 9180)
-hpke = { version = "0.14", default-features = false, features = ["x25519", "alloc", "getrandom", "hkdfsha2", "chacha"] }
+hpke = { version = "0.15", default-features = false, features = ["x25519", "alloc", "getrandom", "hkdfsha2", "chacha"] }
 
 # Serialization
 serde = { version = "1", features = ["derive"] }
